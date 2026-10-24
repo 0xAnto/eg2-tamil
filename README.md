@@ -17,8 +17,8 @@ This repository is a new implementation. It does not copy that code.
 ## Layout
 
     eg2tamil/   text.py, sources.py, units.py, data.py, scoring.py (data side), model.py (model side)
-    scripts/    prepare.py (data), train.py (train and evaluate)
-    tests/      test_model.py
+    scripts/    prepare.py (data), train.py (train and evaluate), transcribe.py (inference)
+    tests/      test_model.py, test_data.py, test_transcribe.py
 
 ## Setup
 
@@ -37,6 +37,11 @@ Training needs one GPU with bf16 support (L4, A100). A T4 does not work. The CPU
 
     # 3. evaluate on the test sets (every source in <data_dir>/test)
     python scripts/train.py --data_dir data/prepared --eval_only --resume runs/base/best.pt --eval_split test
+
+    # 4. transcribe audio files (prints path, TAB, text; splits audio longer than 30 s)
+    python scripts/transcribe.py --ckpt runs/main/best.pt a.wav b.mp3
+
+The model card for Hugging Face is `MODEL_CARD.md`.
 
 The last line of every run starts with `@@` and holds one JSON object with the final metrics.
 The checkpoint holds the model config and the units, so evaluation does not need the units file.

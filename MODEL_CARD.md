@@ -88,7 +88,7 @@ The rule works on ids, not on text. See "Limitations".
 - 18,270 steps of 600 s of padded audio. This is about 6.3 epochs.
 - AdamW, warmup, then cosine decay to the time budget.
 - SpecAugment.
-- Decoding: greedy CTC, no language model.
+- Decoding: greedy CTC. A word n-gram LM is optional (see "Results").
 
 ## Results
 
@@ -102,10 +102,22 @@ Word error rate (WER) and character error rate (CER) on the test sets (lower is 
 The references keep digits and Latin letters. The model writes Tamil script only.
 So those words always count as errors. This is the main reason why the FLEURS CER is higher.
 
-Ablations on the valid sets at step 1,250 (same data and budget; average WER, lower is better):
+Ablations on the valid sets at step 1,250 (same data and warmup; average WER, lower is better). The two frozen-encoder
+runs had a 35-min budget. The fine-tuned value comes from the 6-h main run, so its LR decays more slowly: at step 1,250
+it was 0.00098, not 0.00071. That comparison is not controlled:
 
 - BPE units (1,024) with a frozen encoder: 56.5%. Gemma-token units (3,793) with a frozen encoder: 63.0%.
 - BPE units with the top 2 encoder layers fine-tuned: 50.0%.
+
+With beam search and a KenLM 4-gram word LM (pyctcdecode; `--alpha 0.3 --beta 0.5 --unk_offset -5`, tuned on the
+valid sets; the LM text excludes every valid and test sentence). Lower is better for both:
+
+| Test set | WER greedy | WER with LM | CER greedy | CER with LM |
+| --- | --- | --- | --- | --- |
+| FLEURS ta_in | 38.5% | 31.6% | 15.2% | 13.8% |
+| IISc-MILE | 24.3% | 21.7% | 4.5% | 3.8% |
+
+The model-index above gives the greedy numbers, because those come from the model files alone.
 
 ## How to use
 
@@ -126,7 +138,7 @@ The script splits audio that is longer than 30 s at the quietest point between 2
 
 - The model was trained and tested on read speech only. Conversational speech and noisy speech are not tested.
 - The output has no digits and no Latin script.
-- Decoding is greedy. There is no language model.
+- The model files do not include the n-gram LM. Build it with `scripts/build_lm.py` in the code repository.
 - Common Voice reuses sentences across speakers. 78% of the test sentences of the Prajwal Common Voice part
   also occur in the train set. The WER on that test set (22.4%) is optimistic. Use the FLEURS and IISc-MILE numbers.
 

@@ -17,8 +17,8 @@ This repository is a new implementation. It does not copy that code.
 ## Layout
 
     eg2tamil/   text.py, sources.py, units.py, data.py, scoring.py (data side), model.py (model side)
-    scripts/    prepare.py (data), train.py (train and evaluate), transcribe.py (inference)
-    tests/      test_model.py, test_data.py, test_transcribe.py
+    scripts/    prepare.py (data), train.py (train and evaluate), transcribe.py (inference), decode_lm.py (beam search with an LM)
+    tests/      test_model.py, test_data.py, test_transcribe.py, test_lm.py
 
 ## Setup
 
@@ -40,6 +40,21 @@ Training needs one GPU with bf16 support (L4, A100). A T4 does not work. The CPU
 
     # 4. transcribe audio files (prints path, TAB, text; splits audio longer than 30 s)
     python scripts/transcribe.py --ckpt runs/main/best.pt a.wav b.mp3
+    python scripts/transcribe.py --ckpt runs/main/best.pt --lm data/lm a.wav   # beam search with the n-gram LM (step 5)
+
+    # 5. build the word n-gram LM (needs data/prepared/{valid,test}: their texts are kept out of the LM).
+    #    KenLM tools: clone kpu/kenlm to tools/kenlm, cmake -DCMAKE_BUILD_TYPE=Release, make lmplz build_binary.
+    #    With Homebrew boost 1.90, delete "system" from find_package(Boost ...) in tools/kenlm/CMakeLists.txt.
+    python scripts/build_lm.py --out_dir data/lm
+
+    # 6. score greedy decoding and beam search with an LM. Install the LM packages first. --no-deps keeps numpy 2
+    #    (pyctcdecode pins numpy<2, but it works with numpy 2):
+    uv pip install --no-deps pyctcdecode pygtrie https://github.com/kpu/kenlm/archive/master.zip
+    python scripts/decode_lm.py --ckpt runs/main/best.pt --data_dir data/prepared --split valid --lm data/lm --alpha 0.2 0.3 0.4 --beta 0 0.5 1 --unk_offset -3 -5 -10
+
+DIR (for example `data/lm`) holds `lm.bin` (the KenLM model) and `unigrams.txt` (one word per line, most frequent first).
+`decode_lm.py` caches the log-probabilities in `runs/logits/<ckpt>_<data_dir name>_<split>/`. Without `--lm` it reports the greedy row only.
+`prepare.py --splits valid test` prepares the eval splits only.
 
 The model card for Hugging Face is `MODEL_CARD.md`.
 
@@ -93,7 +108,9 @@ Test sets (lower is better for WER and CER):
 - Published FLEURS-ta WER for comparison (from the osmapi/tamil-asr-qwen3 model card, their normalizer):
   IndicConformer-600M 25.5%, a Qwen3-ASR fine-tune 25.3%, Whisper large-v3 48.6%.
 
-Ablations on the valid sets at step 1,250 (same data and budget; average WER, lower is better):
+Ablations on the valid sets at step 1,250 (same data and warmup; average WER, lower is better). The two frozen-encoder
+runs had a 35-min budget. The fine-tuned value comes from the 6-h main run, so its LR decays more slowly: at step 1,250
+it was 0.00098, not 0.00071. That comparison is not controlled:
 
 | Change | Average valid WER |
 | --- | --- |
@@ -106,5 +123,50 @@ Other findings:
   `--encoder_layers` below 12 is not useful for this encoder.
 - `torch.compile` does not work here (see the note in `scripts/train.py`).
 - Speed on an L4 (higher is better): 550x realtime with a frozen encoder, 435x realtime with the top 2 layers fine-tuned.
+
+### Beam search with a word n-gram LM (2026-10-24)
+
+The same model (`runs/main/best.pt`), decoded with pyctcdecode and a KenLM 4-gram word LM. No GPU: the log-probabilities
+are computed one time on a CPU, then each decoder setting reads them from the cache.
+
+Test sets (lower is better for WER and CER):
+
+| Test set | Utts | WER greedy | WER with LM | CER greedy | CER with LM |
+| --- | --- | --- | --- | --- | --- |
+| FLEURS ta_in (official, all 591 utts) | 591 | 38.5% | 31.6% | 15.2% | 13.8% |
+| IISc-MILE (official test) | 10,845 | 24.3% | 21.7% | 4.5% | 3.8% |
+
+- Settings: `--alpha 0.3 --beta 0.5 --unk_offset -5 --beam 64` (the defaults of `decode_lm.py` and `transcribe.py`).
+- These eval sets come from `prepare.py --splits valid test`. It keeps eval clips up to 120 s, so IISc-MILE has
+  1 clip more than the first table. The greedy numbers agree with the first table.
+- Decode time on a laptop CPU (lower is better): 49 s for the 11,436 test utts with 4 processes. The model pass (about 15x realtime)
+  takes most of the time.
+
+LM text (`scripts/build_lm.py`), 7.98M sentences and 74.5M words after the filters:
+
+| Source | Sentences kept | Words |
+| --- | --- | --- |
+| Train transcripts (Prajwal, FLEURS train) | 0.14M | 1.1M |
+| Tamil Wikipedia (20231101.ta, CC-BY-SA) | 1.96M | 16.2M |
+| ai4bharat/sangraha verified/tam, first 2 of 53 files (CC-BY-4.0) | 5.88M | 57.2M |
+
+- The text goes through the train rule (`normalize(strict=True)`), so 23–31% of the web sentences are rejected
+  (digits, Latin letters). Exact duplicates are removed.
+- No eval text in the LM: a sentence is removed when it equals a valid or test reference, or when it shares a word
+  5-gram with one. The exact rule alone was not sufficient: for 1.3% of the IISc-MILE test references (5 words or more),
+  all word 5-grams were in the LM text. After the 5-gram rule, no eval reference has a 5-gram in the LM text. The leaky LM gave IISc-MILE 21.6%,
+  so the leak changed the result by only 0.1 point.
+- 4-gram, singletons pruned for orders 2–4, 8-bit quantized trie: `lm.bin` is 366 MB. `unigrams.txt` has the 1.48M words
+  that occur 2 or more times. With this list, 5–7% of the reference words are out of vocabulary (OOV).
+
+Tuning, on the valid sets only (105 settings; about 20 s for each):
+- The target is the mean WER of FLEURS valid and Prajwal MILE valid: 30.4% greedy, 25.3% at the chosen setting (lower is better).
+  Prajwal CV valid is not in the target, because 77% of its sentences are also in the acoustic train text.
+  With the LM at the first settings tried (`unk_offset -10`), its WER went up (21.4% to 22.6%). At the chosen
+  setting it goes down (20.7%).
+- The OOV score has a large effect. At alpha 0.2 and 0.3, -5 is better than the pyctcdecode default (-10) for every beta,
+  and the 8 best settings all use -5 or -3. A probable reason: Tamil has many word forms, so a correct word is often
+  not in the unigram list.
+- A wider beam does not help (lower is better): beam 64, 128 and 256 give the same valid WER within 0.03 points.
 
 To continue training, resume from `runs/main/last.pt` (it holds the optimizer state).

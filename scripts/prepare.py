@@ -184,6 +184,8 @@ def main():
     ap.add_argument("--sources", nargs="+", default=["prajwal", "mile"])
     ap.add_argument("--raw_dir", default="data/raw")
     ap.add_argument("--out_dir", default="data/prepared")
+    ap.add_argument("--splits", nargs="+", choices=["test", "valid", "train"], default=["test", "valid", "train"],
+                    help="process only these splits. Without train: valid rows that are not kept are dropped, and no units are built.")
     ap.add_argument("--workers", type=int, default=os.cpu_count())
     ap.add_argument("--valid_keep", type=int, default=2000, help="valid utts per output source. The rest goes to train.")
     ap.add_argument("--bpe_vocab", type=int, default=1024)
@@ -193,13 +195,15 @@ def main():
     a = ap.parse_args()
 
     # Pass 1: read only the id columns from the Hub (or from disk, if the file is already there).
-    keys = [(n, s, f) for s in ("test", "valid", "train") for n in a.sources if s in sources.SOURCES[n]["splits"]
+    keys = [(n, s, f) for s in ("test", "valid", "train") if s in a.splits for n in a.sources if s in sources.SOURCES[n]["splits"]
             for f in sources.remote_files(n, s, a.max_files_per_split)]
     with ThreadPoolExecutor(2) as ex:
         scanned = list(ex.map(lambda k: sources.read_ids(k[0], k[2], a.raw_dir, a.max_rows_per_file), keys))
     ids = {k: v[0] for k, v in zip(keys, scanned)}
     size = {k: v[1] for k, v in zip(keys, scanned)}
     plan, overlaps = assign(ids, sources.out_name, a.valid_keep)
+    if "train" not in a.splits:  # the valid rest has no train to go to
+        plan = {k: [d if d != "train" else None for d in v] for k, v in plan.items()}
     need = [k for k in keys if any(plan[k])]
     gb = lambda ks: sum(size[k] for k in ks) / 1e9
     print(f"overlaps: {dict(overlaps)}\ndownload: {len(need)} of {len(keys)} files, {gb(need):.1f} of {gb(keys):.1f} GB"
@@ -233,24 +237,26 @@ def main():
     stats["x_realtime_per_worker"] = stats["audio_s"] / max(stats["worker_s"], 1e-9)
     stats["bad_chars"] = dict(stats["bad_chars"].most_common(30))
 
-    # Honest eval: the share of eval utterances whose text also occurs in train (not dropped, only reported).
-    train = read_texts(a.out_dir, "train")
-    train_texts = {t for texts, _ in train.values() for t in texts}
-    stats["eval_text_seen_in_train"] = {
-        f"{sp}/{src}": float(np.mean([t in train_texts for t in texts]))
-        for sp in ("valid", "test") for src, (texts, _) in read_texts(a.out_dir, sp).items()}
+    if "train" in a.splits:  # these steps need the train shards
+        # Honest eval: the share of eval utterances whose text also occurs in train (not dropped, only reported).
+        train = read_texts(a.out_dir, "train")
+        train_texts = {t for texts, _ in train.values() for t in texts}
+        stats["eval_text_seen_in_train"] = {
+            f"{sp}/{src}": float(np.mean([t in train_texts for t in texts]))
+            for sp in ("valid", "test") for src, (texts, _) in read_texts(a.out_dir, sp).items()}
 
-    # Units: both kinds, from the train texts.
-    texts = [t for ts, _ in train.values() for t in ts]
-    durs = [d for _, ds in train.values() for d in ds]
-    test = read_texts(a.out_dir, "test")
-    test_texts, test_durs = [t for ts, _ in test.values() for t in ts], [d for _, ds in test.values() for d in ds]
-    stats["units"] = {}
-    for kind in ("gemma", "bpe"):
-        units, build = Units.build(GEMMA, texts, kind=kind, vocab=a.bpe_vocab)
-        units.save(os.path.join(a.out_dir, f"units_{kind}.json"))
-        stats["units"][kind] = dict(count=len(units), **build, train=unit_stats(units, texts, durs),
-                                    test=unit_stats(units, test_texts, test_durs))
+        # Units: both kinds, from the train texts.
+        texts = [t for ts, _ in train.values() for t in ts]
+        durs = [d for _, ds in train.values() for d in ds]
+        test = read_texts(a.out_dir, "test")
+        test_texts, test_durs = [t for ts, _ in test.values() for t in ts], [d for _, ds in test.values() for d in ds]
+        stats["units"] = {}
+        for kind in ("gemma", "bpe"):
+            units, build = Units.build(GEMMA, texts, kind=kind, vocab=a.bpe_vocab)
+            units.save(os.path.join(a.out_dir, f"units_{kind}.json"))
+            stats["units"][kind] = dict(count=len(units), **build, train=unit_stats(units, texts, durs),
+                                        test=unit_stats(units, test_texts, test_durs))
+
     with open(os.path.join(a.out_dir, "stats.json"), "w") as f:
         json.dump(stats, f, indent=1, ensure_ascii=False)
     print(json.dumps(stats, indent=1, ensure_ascii=False))

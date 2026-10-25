@@ -9,8 +9,8 @@ Can a small model on top of this encoder learn to write Tamil? How good is it wi
 **The short answer.** Yes. On the public FLEURS Tamil benchmark, it is better than Whisper large-v3, but it is not
 yet as good as the best dedicated Indian-language models.
 
-> Status: research experiment, not a product. The model weights are not public yet. A Hugging Face release is in
-> preparation. Until then, you can train the model yourself (see [Reproduce](#reproduce)).
+> Status: research experiment, not a product. The model weights and the LM are on Hugging Face:
+> [0xanto/eg2-tamil](https://huggingface.co/0xanto/eg2-tamil).
 
 ## Results
 
@@ -24,13 +24,13 @@ their recordings in training:
 
 | Test set | Word error rate, greedy | Word error rate, with LM | Character error rate, with LM |
 | --- | --- | --- | --- |
-| FLEURS Tamil | 38.5% | **31.5%** | 13.7% |
-| IISc-MILE Tamil | 24.3% | **21.5%** | 3.8% |
+| FLEURS Tamil | 38.5% | **31.6%** | 13.8% |
+| IISc-MILE Tamil | 24.3% | **21.7%** | 3.8% |
 
 Lower is better for all columns.
 
 - **Word error rate (WER):** the number of wrong, missing and extra words for every 100 words of the reference.
-  A WER of 31.5% means that roughly 7 of 10 words come out exactly right. Tamil words are long, and one wrong letter
+  A WER of 31.6% means that roughly 7 of 10 words come out exactly right. Tamil words are long, and one wrong letter
   makes the full word wrong. So the **character error rate (CER)** is also important: on IISc-MILE, about 96 of
   100 letters are correct.
 - **Greedy** is the model alone. **With LM** adds a beam search with a Tamil word 4-gram language model (LM). The LM runs on
@@ -44,7 +44,7 @@ normalizer, so the comparison is approximate.
 | --- | --- |
 | Qwen3-ASR, fine-tuned for Tamil | 25.3% |
 | IndicConformer-600M (AI4Bharat) | 25.5% |
-| **eg2-tamil, with LM** | **31.5%** |
+| **eg2-tamil, with LM** | **31.6%** |
 | eg2-tamil, greedy | 38.5% |
 | Whisper large-v3 | 48.6% |
 
@@ -60,7 +60,7 @@ The story of the sound and light show is like a storybook."
 | --- | --- | --- |
 | Reference | வழக்கமாக நீங்கள் எப்போதும் இங்கே சுற்றுலா பயணிகள் மற்றும் விற்பனையாளர்களின் ஒலியை கேட்கலாம் ஒலி மற்றும் ஒளியின் கதையானது ஒரு கதை புத்தகம் போன்றது | |
 | Greedy | வழக்கமாக நீங்கள் எப்போதும் எங்கே சுற்றுலாப் பயணிகள் மற்றும் விற்பனையாளர்களின் ஒியை கேட்கலாம் ஒளி மற்றும் மொழின் கதையானது ஒரு கதை புத்தகம் போன்றது | 28% |
-| With LM | வழக்கமாக நீங்கள் எப்போதும் இங்கே சுற்றுலா பயணிகள் மற்றும் விற்பனையாளர்களின் ஒ கேட்கலாம் ஒளி மற்றும் மொழியின் கதையானது ஒரு கதை புத்தகம் போன்றது | 17% |
+| With LM | வழக்கமாக நீங்கள் எப்போதும் இங்கே சுற்றுலாப் பயணிகள் மற்றும் விற்பனையாளர்களின் ஒ கேட்கலாம் ஒளி மற்றும் மொழியின் கதையானது ஒரு கதை புத்தகம் போன்றது | 22% |
 
 **2.** `13871963685686168470` (8.4 s). Meaning: "The Sundarbans forests are a UNESCO World Heritage Site. The part of the
 Sundarbans inside the Indian border is called the Sundarbans National Park."
@@ -69,7 +69,7 @@ Sundarbans inside the Indian border is called the Sundarbans National Park."
 | --- | --- | --- |
 | Reference | சுந்தரவனக் காடுகள் யுனெஸ்கோவின் உலக பாரம்பரிய தளமாக அறிவிக்கப்பட்டுள்ளது இந்திய எல்லைக்குள் உள்ள சுந்தரவனத்தின் பகுதி சுந்தர்வன தேசிய பூங்கா என்று அழைக்கப்படுகிறது | |
 | Greedy | சுந்தருக்குடுகள் யூனோஸோவின் உலக பாரம்பரி தளமாக அறிவிக்கப்பட்டுள்ளது இந்திய எல்லைக்குள் உள்ள சுந்த வத்தின் பகுதி சுந்தரண தேசியி பூ என்று அழைக்கப்படுகிறது | 53% |
-| With LM | சுந்தருக்கு ஆடுகள் யுனெஸ்கோவின் உலக பாரம்பரிய தளமாக அறிவிக்கப்பட்டுள்ளது இந்திய எல்லைக்குள் உள்ள சுந்தரத்தின் பகுதி சுந்தர தேசிய பூ என்று அழைக்கப்படுகிறது | 29% |
+| With LM | சுந்தர ஆடுகள் யுனெஸ்கோவின் உலக பாரம்பரிய தளமாக அறிவிக்கப்பட்டுள்ளது இந்திய எல்லைக்குள் உள்ள சுந்தரத்தின் பகுதி சுந்தர தேசிய பூ என்று அழைக்கப்படுகிறது | 29% |
 
 **3.** `17264457532158271660` (5.3 s). Meaning: "The scenes are shown on the pyramids, and different pyramids are lit up."
 
@@ -91,7 +91,7 @@ removed", for `ஒளியேற்றப்படும்`, "will be lit up")
    controlled; see the ablations).
 2. **Small Tamil subword units are better than Gemma's own text tokens.** 1,024 BPE units gave 56.5% valid WER,
    and the 3,793 Gemma tokens gave 63.0% at the same training budget (lower is better).
-3. **A word n-gram LM helps a lot,** and it costs no GPU: −7.0 WER points on FLEURS and −2.8 on IISc-MILE.
+3. **A word n-gram LM helps a lot,** and it costs no GPU: −6.9 WER points on FLEURS and −2.6 on IISc-MILE.
 4. **For Tamil, the most important LM setting is the penalty for unknown words.** Tamil has very many word forms,
    so 4–6% of the correct words are not in the LM vocabulary. The default penalty (−10) is too strong. −5 is better.
 5. **More LM text helps only a little.** 3.2 times more web text (74M to 236M words) improved the test WER by only
@@ -117,22 +117,23 @@ The model has 70.6M trainable parameters: the reader, the head, and the top 2 en
 
 ## Try it
 
-You need Python 3.12 and a checkpoint (`best.pt`). Until the weights are public, train one (see [Reproduce](#reproduce)).
-A CPU is sufficient for transcription: on an 8-core laptop CPU, the model runs at 11–16x realtime (higher is better).
-The first run downloads the encoder (about 1.5 GB).
+You need Python 3.12. A CPU is sufficient for transcription: on an 8-core laptop CPU, the model runs at 11–16x
+realtime (higher is better). The commands below download the model and the LM from Hugging Face (about 0.7 GB). The
+first run also downloads the encoder (about 1.5 GB).
 
     git clone https://github.com/0xAnto/eg2-tamil && cd eg2-tamil
     python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
-    .venv/bin/python scripts/transcribe.py --ckpt best.pt audio.wav
+    .venv/bin/hf download 0xanto/eg2-tamil --local-dir eg2-tamil-model
+    .venv/bin/python scripts/transcribe.py --ckpt eg2-tamil-model audio.wav
 
 The script prints one line for each file: the path, a TAB, and the text. It reads the formats of libsndfile (wav,
 flac; mp3 with libsndfile 1.1 or later). It cuts audio that is longer than 30 s at quiet points, and then joins the
 texts.
 
-To use the LM, install the LM packages and build the LM (see [Build the LM](#build-the-lm)). Then add `--lm`:
+For better results, use the LM in `eg2-tamil-model/lm`. Install the LM packages, then add `--lm`:
 
     uv pip install --python .venv/bin/python --no-deps pyctcdecode pygtrie https://github.com/kpu/kenlm/archive/master.zip
-    .venv/bin/python scripts/transcribe.py --ckpt best.pt --lm data/lm audio.wav
+    .venv/bin/python scripts/transcribe.py --ckpt eg2-tamil-model --lm eg2-tamil-model/lm audio.wav
 
 `--no-deps` is necessary: pyctcdecode asks for numpy < 2, but it works with numpy 2.
 
@@ -144,7 +145,7 @@ audio file. The page then shows two texts: the model only (greedy), and the mode
 First do the steps in [Try it](#try-it). Then install gradio and start the page:
 
     .venv/bin/pip install gradio
-    .venv/bin/python scripts/demo.py --ckpt best.pt --lm data/lm
+    .venv/bin/python scripts/demo.py --ckpt eg2-tamil-model --lm eg2-tamil-model/lm
 
 Open http://127.0.0.1:7860 in your browser. The page runs on your computer only. Without `--lm`, it shows the
 greedy text only.
@@ -213,19 +214,18 @@ The LM needs the KenLM tools. Clone [kpu/kenlm](https://github.com/kpu/kenlm) to
 and `build_binary` with `cmake -DCMAKE_BUILD_TYPE=Release`. With Homebrew boost 1.90, first remove `system` from
 `find_package(Boost ...)` in `tools/kenlm/CMakeLists.txt`.
 
-    python scripts/build_lm.py --out_dir data/lm --sangraha_files 8
+    python scripts/build_lm.py --out_dir data/lm
 
-- The LM text is 24.3M sentences (236M words): the train transcripts, Tamil Wikipedia (`wikimedia/wikipedia`,
-  `20231101.ta`) and the first 8 of 53 files of `ai4bharat/sangraha` (verified Tamil). The build takes about 1 h,
+- The LM text is 8.0M sentences (74.5M words): the train transcripts, Tamil Wikipedia (`wikimedia/wikipedia`,
+  `20231101.ta`) and the first 2 of 53 files of `ai4bharat/sangraha` (verified Tamil). The build takes about 25 min,
   mostly for the downloads.
 - The text goes through the same rule as the train text, so 23–31% of the web sentences are rejected (digits, Latin
   letters). Duplicate sentences are removed.
 - **No test text in the LM.** The script needs `data/prepared/valid` and `data/prepared/test`. It removes every
   sentence that equals a valid or test sentence, or that shares a sequence of 5 words with one.
-- The LM is a 4-gram (singletons pruned for orders 2–4, 8-bit quantized trie): `lm.bin` is 942 MB. `unigrams.txt`
-  has the 3.29M words that occur 2 or more times. The decoder needs about 1.7 GB of RAM for it.
-- `--sangraha_files 2` (the default) gives a smaller LM (366 MB, 0.7 GB of RAM) with almost the same WER. See
-  [Detailed results](#detailed-results).
+- The LM is a 4-gram (singletons pruned for orders 2–4, 8-bit quantized trie): `lm.bin` is 366 MB. `unigrams.txt`
+  has the 1.48M words that occur 2 or more times. The decoder needs about 0.7 GB of RAM for it. This is the LM on
+  Hugging Face.
 
 ### Tune and score the LM
 
@@ -259,18 +259,23 @@ The two LM sizes, with the same decoder settings (lower is better for `lm.bin`, 
 | LM | LM text | `lm.bin` | Decoder RAM | FLEURS WER | IISc-MILE WER |
 | --- | --- | --- | --- | --- | --- |
 | None (greedy) | | | | 38.5% | 24.3% |
-| 2 Sangraha files | 74.5M words | 366 MB | 0.7 GB | 31.6% | 21.7% |
+| 2 Sangraha files (on Hugging Face) | 74.5M words | 366 MB | 0.7 GB | 31.6% | 21.7% |
 | 8 Sangraha files | 236M words | 942 MB | 1.7 GB | 31.5% | 21.5% |
+
+A word list with all the words of the LM text (4.46M words, also the words that occur only one time) helps only a
+little. With the small LM, the mean valid WER of FLEURS Tamil and IISc-MILE goes from 25.3% to 25.0% (lower is
+better; best setting `--alpha 0.4`). But the decoder then needs about 1.4 GB more RAM. So the LM keeps the words
+that occur 2 or more times.
 
 The LM tuning target is the mean WER of two valid sets with little train overlap (FLEURS Tamil and IISc-MILE from
 Prajwal). Common Voice valid is not in the target, because 77% of its sentences are also in the train text. With the
 default unknown-word penalty (−10), the LM made Common Voice worse (21.4% to 22.6%). With −5, it makes Common Voice
-better (20.7% with the small LM, 19.7% with the large LM).
+better (20.7%).
 
 The LM filter for test text is important for honest numbers. Before the 5-word filter, every 5-word sequence of 1.3%
 of the IISc-MILE test sentences was in the LM text. That leaky LM (2 Sangraha files) gave IISc-MILE 21.6% instead of
 21.7%, so the effect was small. After the filter, no valid or test sentence shares a sequence of 5 words with the
-LM text of either LM.
+LM text.
 
 Ablations on the valid sets at step 1,250 (average WER, lower is better):
 
@@ -345,5 +350,5 @@ These are good next experiments. Pull requests are welcome.
 ## License
 
 The code and the model weights use the Apache-2.0 license (see `LICENSE`). The base model `google/embeddinggemma-2`
-also uses Apache-2.0. Each dataset has its own license. The LM text includes Tamil Wikipedia (CC-BY-SA), so an LM
-that is built from it must use a share-alike license.
+also uses Apache-2.0. Each dataset has its own license. The LM text includes Tamil Wikipedia (CC BY-SA), so the LM
+files on Hugging Face (`lm/`) use CC BY-SA 4.0.

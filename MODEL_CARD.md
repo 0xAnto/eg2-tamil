@@ -9,6 +9,8 @@ datasets:
 - Prajwal-143/ASR-Tamil-cleaned
 - deepdml/iisc-mile-tamil-asr
 - google/fleurs
+- ai4bharat/sangraha
+- wikimedia/wikipedia
 tags:
 - ctc
 - tamil
@@ -110,44 +112,66 @@ it was 0.00098, not 0.00071. That comparison is not controlled:
 - BPE units with the top 2 encoder layers fine-tuned: 50.0%.
 
 With beam search and a KenLM 4-gram word LM (pyctcdecode; `--alpha 0.3 --beta 0.5 --unk_offset -5`, tuned on the
-valid sets; the LM text excludes every valid and test sentence). Lower is better for both:
+valid sets). The LM is in `lm/` of this repository. Lower is better for both:
 
 | Test set | WER greedy | WER with LM | CER greedy | CER with LM |
 | --- | --- | --- | --- | --- |
 | FLEURS ta_in | 38.5% | 31.6% | 15.2% | 13.8% |
 | IISc-MILE | 24.3% | 21.7% | 4.5% | 3.8% |
 
-The model-index above gives the greedy numbers, because those come from the model files alone.
+The LM is a word 4-gram (KenLM, 366 MB). Its text is 74.5M words: the train transcripts, Tamil Wikipedia, and 2 files
+of AI4Bharat Sangraha. The LM text does not contain a valid or test sentence, or a sequence of 5 words from one.
+The decoder needs about 0.7 GB of RAM for the LM.
+The LM evaluation keeps test clips of up to 120 s (IISc-MILE: 10,845 utts), so its greedy numbers are 0.1 higher.
+
+The model-index above gives the greedy numbers, because those need no LM.
 
 ## How to use
 
-Clone the code repository, [0xAnto/eg2-tamil](https://github.com/0xAnto/eg2-tamil). Install the requirements:
+The code is in [0xAnto/eg2-tamil](https://github.com/0xAnto/eg2-tamil) on GitHub. Clone it, install the requirements,
+and download this model repository:
 
-    pip install -r requirements.txt
+    git clone https://github.com/0xAnto/eg2-tamil && cd eg2-tamil
+    python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
+    .venv/bin/hf download 0xanto/eg2-tamil --local-dir eg2-tamil-model
+    .venv/bin/python scripts/transcribe.py --ckpt eg2-tamil-model audio.wav
 
-Run the script. It prints one line for each file: the path, a TAB, and the text.
+The script prints one line for each file: the path, a TAB, and the text. It cuts audio that is longer than 30 s at
+quiet points, and then joins the texts. A CPU is sufficient: on an 8-core laptop CPU, the model runs at 11–16x
+realtime (higher is better).
 
-    python scripts/transcribe.py --ckpt best.pt a.wav b.mp3
+For better results, use the LM in `lm/`. Install the LM packages, then add `--lm`:
 
-The checkpoint holds the reader, the head, the fine-tuned encoder layers, and the units.
-It does not hold the other encoder weights. The script downloads them from
+    uv pip install --python .venv/bin/python --no-deps pyctcdecode pygtrie https://github.com/kpu/kenlm/archive/master.zip
+    .venv/bin/python scripts/transcribe.py --ckpt eg2-tamil-model --lm eg2-tamil-model/lm audio.wav
+
+`--no-deps` is necessary: pyctcdecode asks for numpy < 2, but it works with numpy 2.
+
+To try the model on a local web page (microphone or file upload), see the "Demo" section of the
+[README](https://github.com/0xAnto/eg2-tamil#demo) on GitHub.
+
+This repository holds the reader, the head, the fine-tuned encoder layers, and the units (`model.safetensors`,
+`config.json`). It does not hold the frozen encoder layers. The script downloads them from
 [`google/embeddinggemma-2`](https://huggingface.co/google/embeddinggemma-2) on the first run (about 1.5 GB).
-The script splits audio that is longer than 30 s at the quietest point between 20 s and 30 s, and joins the texts.
 
 ## Limitations
 
 - The model was trained and tested on read speech only. Conversational speech and noisy speech are not tested.
 - The output has no digits and no Latin script.
-- The model files do not include the n-gram LM. Build it with `scripts/build_lm.py` in the code repository.
 - Common Voice reuses sentences across speakers. 78% of the test sentences of the Prajwal Common Voice part
   also occur in the train set. The WER on that test set (22.4%) is optimistic. Use the FLEURS and IISc-MILE numbers.
 
 ## Credits
 
-- The approach comes from [qnguyen3/gemma-asr](https://github.com/qnguyen3/gemma-asr). This model is a new implementation.
+- The idea comes from [qnguyen3/gemma-asr](https://github.com/qnguyen3/gemma-asr) (Vietnamese speech recognition
+  with EmbeddingGemma 2). Thank you to its author.
 - Google made EmbeddingGemma 2.
-- The authors of Prajwal-143/ASR-Tamil-cleaned, IISc-MILE (deepdml/iisc-mile-tamil-asr), and FLEURS made the datasets.
+- The speech data comes from Mozilla Common Voice (CC0), the MILE lab at IISc (CC BY 2.0), Google FLEURS (CC BY 4.0),
+  and the `Prajwal-143/ASR-Tamil-cleaned` dataset.
+- The LM text comes from Tamil Wikipedia (CC BY-SA) and AI4Bharat Sangraha (CC BY 4.0).
 
 ## License
 
-Apache-2.0, the same as the base model. The datasets have their own licenses.
+- The model files (`model.safetensors`, `config.json`) use Apache-2.0, the same as the base model.
+- The LM files (`lm/lm.bin`, `lm/unigrams.txt`) use CC BY-SA 4.0, because the LM text includes Tamil Wikipedia.
+  The model files do not need the LM.

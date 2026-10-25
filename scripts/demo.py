@@ -45,14 +45,15 @@ def main():
                 beam.append(normalize_hypothesis(decoder.decode(lp, beam_width=64)))
         return " ".join(greedy), " ".join(beam) if decoder else "(start the demo with --lm)"
 
-    gr.Interface(
-        run,
-        gr.Audio(sources=["microphone", "upload"], type="filepath", label="Tamil speech"),
-        [gr.Textbox(label="Greedy (the model only)"), gr.Textbox(label="With LM")],
-        title="eg2-tamil",
-        description="Tamil speech recognition on the EmbeddingGemma 2 audio encoder. Record or upload a clip.",
-        flagging_mode="never",
-    ).launch(server_port=args.port)
+    # Blocks, not Interface: Interface puts the two texts one above the other. Side by side, the reader compares them line by line.
+    with gr.Blocks(title="eg2-tamil") as page:
+        gr.Markdown("# eg2-tamil\nTamil speech recognition on the EmbeddingGemma 2 audio encoder. Record or upload a clip.")
+        audio = gr.Audio(sources=["microphone", "upload"], type="filepath", label="Tamil speech")
+        submit = gr.Button("Submit", variant="primary")
+        with gr.Row():
+            texts = [gr.Textbox(label="Greedy (the model only)"), gr.Textbox(label="With LM")]
+        submit.click(run, audio, texts)
+    page.launch(server_port=args.port)
 
 
 if __name__ == "__main__":

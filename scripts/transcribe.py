@@ -16,7 +16,7 @@ import torch
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from decode_lm import build_decoder  # noqa: E402
-from eg2tamil.model import GemmaCTC, greedy_decode  # noqa: E402
+from eg2tamil.model import GemmaCTC, greedy_decode, load_checkpoint  # noqa: E402
 from eg2tamil.text import normalize_hypothesis  # noqa: E402
 from eg2tamil.units import Units  # noqa: E402
 
@@ -49,7 +49,7 @@ def load(path: str) -> np.ndarray:
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("files", nargs="+")
-    ap.add_argument("--ckpt", required=True)
+    ap.add_argument("--ckpt", required=True, help="a .pt file or a release folder (see export_hf.py)")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     ap.add_argument("--batch_seconds", type=float, default=120, help="max padded audio per batch")
     ap.add_argument("--lm", default=None, help="directory with lm.bin and unigrams.txt. Decode with beam search and this LM")
@@ -59,7 +59,7 @@ def main():
     ap.add_argument("--beam", type=int, default=64)
     args = ap.parse_args()
 
-    ckpt = torch.load(args.ckpt, map_location="cpu", weights_only=False)
+    ckpt = load_checkpoint(args.ckpt)
     model, units = GemmaCTC.from_checkpoint(ckpt).to(args.device).eval(), Units(ckpt["units"])
     amp = args.device.startswith("cuda")  # bf16 autocast on the GPU only, as in train.py
     decoder = build_decoder(units, args.lm, args.alpha, args.beta, args.unk_offset) if args.lm else None

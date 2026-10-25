@@ -9,11 +9,14 @@
 The idea comes from qnguyen3/gemma-asr (Vietnamese). This file is a new implementation.
 """
 
+import json
+import os
 from dataclasses import asdict, dataclass
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from safetensors.torch import load_file
 from transformers import AutoFeatureExtractor, AutoModel
 
 READERS = {  # reader size presets: d_model, n_layers, n_heads
@@ -212,6 +215,20 @@ class GemmaCTC(nn.Module):
 
     def config_dict(self) -> dict:
         return asdict(self.cfg)
+
+
+def load_checkpoint(path: str) -> dict:
+    """Load a checkpoint from a .pt file or from a release folder.
+
+    A folder holds config.json and model.safetensors (see scripts/export_hf.py). It gives a dict with
+    the keys "config", "units", "step" and "model". A file gives the dict that train.py saved.
+    """
+    if not os.path.isdir(path):
+        return torch.load(path, map_location="cpu", weights_only=False)
+    with open(os.path.join(path, "config.json"), encoding="utf-8") as f:
+        ckpt = json.load(f)
+    ckpt["model"] = load_file(os.path.join(path, "model.safetensors"))
+    return ckpt
 
 
 @torch.no_grad()

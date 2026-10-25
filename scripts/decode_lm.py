@@ -3,7 +3,8 @@
 
   python scripts/decode_lm.py --ckpt runs/main/best.pt --data_dir data/prepared --split test --lm lm/ --alpha 0.3 0.5 --beta 1 2
 
-The first run saves the log-probabilities of each source to runs/logits/<ckpt stem>_<data_dir name>_<split>/<source>.npy.
+The first run saves the log-probabilities of each source to runs/logits/<ckpt stem or folder name>_<data_dir name>_<split>/<source>.npy.
+--ckpt is a .pt file or a release folder (see export_hf.py).
 Later runs read this cache and do not run the model. Delete the directory after a new checkpoint with the same name, or new data in the same data_dir.
 --lm is a directory with lm.bin (the KenLM model) and unigrams.txt (one word per line).
 Without --lm, the script reports the greedy row only.
@@ -25,7 +26,7 @@ import torch
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from eg2tamil.data import EvalSet, list_shards  # noqa: E402
-from eg2tamil.model import GemmaCTC, greedy_decode  # noqa: E402
+from eg2tamil.model import GemmaCTC, greedy_decode, load_checkpoint  # noqa: E402
 from eg2tamil.scoring import ErrorCounts, score_batch  # noqa: E402
 from eg2tamil.units import Units  # noqa: E402
 
@@ -104,7 +105,7 @@ def blocks(x, offsets):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--ckpt", required=True)
+    ap.add_argument("--ckpt", required=True, help="a .pt file or a release folder (see export_hf.py)")
     ap.add_argument("--data_dir", default="data/prepared")
     ap.add_argument("--split", default="test")
     ap.add_argument("--sources", nargs="*", default=None, help="default: all sources in <data_dir>/<split>")
@@ -117,11 +118,13 @@ def main():
     ap.add_argument("--batch_seconds", type=float, default=600.0, help="padded audio seconds per batch, as in train.py")
     args = ap.parse_args()
 
-    ckpt = torch.load(args.ckpt, map_location="cpu", weights_only=False)
+    ckpt = load_checkpoint(args.ckpt)
     units = Units(ckpt["units"])
     shards = list_shards(args.data_dir, args.split, args.sources)
     assert shards, f"no shards in {args.data_dir}/{args.split}"
-    cache = os.path.join("runs", "logits", f"{os.path.splitext(os.path.basename(args.ckpt))[0]}_{os.path.basename(os.path.normpath(args.data_dir))}_{args.split}")
+    ckpt_name = os.path.basename(os.path.normpath(args.ckpt))  # a folder name, or a file name without .pt
+    ckpt_name = ckpt_name if os.path.isdir(args.ckpt) else os.path.splitext(ckpt_name)[0]
+    cache = os.path.join("runs", "logits", f"{ckpt_name}_{os.path.basename(os.path.normpath(args.data_dir))}_{args.split}")
     os.makedirs(cache, exist_ok=True)
 
     # 1. Fill the cache. The model loads only when a source misses.

@@ -136,6 +136,19 @@ To use the LM, install the LM packages and build the LM (see [Build the LM](#bui
 
 `--no-deps` is necessary: pyctcdecode asks for numpy < 2, but it works with numpy 2.
 
+## Demo
+
+`scripts/demo.py` is a small web page to try the model. You record Tamil speech with the microphone or upload an
+audio file. The page then shows two texts: the model only (greedy), and the model with the LM.
+
+First do the steps in [Try it](#try-it). Then install gradio and start the page:
+
+    .venv/bin/pip install gradio
+    .venv/bin/python scripts/demo.py --ckpt best.pt --lm data/lm
+
+Open http://127.0.0.1:7860 in your browser. The page runs on your computer only. Without `--lm`, it shows the
+greedy text only.
+
 ## Reproduce
 
 ### Data
@@ -311,8 +324,9 @@ These are good next experiments. Pull requests are welcome.
 
     eg2tamil/   text.py, sources.py, units.py, data.py, scoring.py (data side), model.py (model side)
     scripts/    prepare.py (data), train.py (train and evaluate), transcribe.py (inference),
-                build_lm.py (the n-gram LM), decode_lm.py (beam search with the LM)
-    tests/      test_data.py, test_model.py, test_transcribe.py, test_lm.py, test_build_lm.py
+                build_lm.py (the n-gram LM), decode_lm.py (beam search with the LM),
+                demo.py (a local web page to try the model), export_hf.py (the Hugging Face release folder)
+    tests/      test_data.py, test_model.py, test_transcribe.py, test_lm.py, test_build_lm.py, test_export.py
     colab/      job.sh, stage.sh (run the stages on a Colab VM)
 
 `MODEL_CARD.md` is the model card for the Hugging Face release.

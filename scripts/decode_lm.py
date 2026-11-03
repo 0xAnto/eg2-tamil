@@ -114,6 +114,7 @@ def main():
     ap.add_argument("--beta", nargs="+", type=float, default=[0.5], help="word bonus. A list gives a grid with --alpha")
     ap.add_argument("--unk_offset", nargs="+", type=float, default=[-5.0], help="score of a word that is not in unigrams.txt. A list adds a grid axis")
     ap.add_argument("--beam", type=int, default=64)
+    ap.add_argument("--itn_min", nargs="*", type=int, default=[], help="also score each setting with ITN (spoken numbers >= N to digits) in the hyps, and in the hyps and the refs")
     ap.add_argument("--workers", type=int, default=os.cpu_count())
     ap.add_argument("--batch_seconds", type=float, default=600.0, help="padded audio seconds per batch, as in train.py")
     args = ap.parse_args()
@@ -140,6 +141,14 @@ def main():
         del es
     del model
 
+    # A variant is (row suffix, itn_min, itn_refs). "itn" applies ITN to the hyps, "norm" to the hyps and the refs.
+    variants = [("", None, False)] + [(f" {k}>={n}", n, k == "norm") for n in args.itn_min for k in ("itn", "norm")]
+
+    def score(counts, tag, refs, hyps):
+        for suffix, n, both in variants:
+            counts.setdefault(tag + suffix, ErrorCounts())
+            counts[tag + suffix] += score_batch(refs, hyps, n, both)
+
     # 2. Decode from the cache. A row is a setting: greedy, or (alpha, beta).
     data = {}
     for name in shards:
@@ -153,11 +162,11 @@ def main():
 
     t0 = time.time()
     for name, (x, offsets, refs) in data.items():
-        counts = ErrorCounts()
+        counts = {}
         for i, j, arrs in blocks(x, offsets):
             hyps = [units.decode(u) for a in arrs for u in greedy_decode(torch.from_numpy(a)[None], torch.tensor([len(a)]))]
-            counts += score_batch(refs[i:j], hyps)
-        results[name]["greedy"] = counts.summary()
+            score(counts, "greedy", refs[i:j], hyps)
+        results[name].update({t: c.summary() for t, c in counts.items()})
         progress("greedy", name, len(refs), len(refs), t0)
 
     if args.lm:
@@ -169,14 +178,14 @@ def main():
             # A new pool for each setting: a forked worker keeps the parameters that it had at the fork.
             with get_context("fork").Pool(args.workers) as pool:
                 for name, (x, offsets, refs) in data.items():
-                    counts = ErrorCounts()
+                    counts = {}
                     for i, j, arrs in blocks(x, offsets):
                         hyps = decoder.decode_batch(pool, arrs, beam_width=args.beam)
-                        counts += score_batch(refs[i:j], hyps)
+                        score(counts, tag, refs[i:j], hyps)
                         if time.time() - last > 30:
                             last = time.time()
                             progress(tag, name, j, len(refs), t0)
-                    results[name][tag] = counts.summary()
+                    results[name].update({t: c.summary() for t, c in counts.items()})
             print(f"[{tag}] done in {time.time() - t0:.0f} s", flush=True)
 
     settings = list(next(iter(results.values())))

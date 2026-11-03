@@ -16,6 +16,7 @@ import torch
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from decode_lm import build_decoder  # noqa: E402
+from eg2tamil.itn import itn  # noqa: E402
 from eg2tamil.model import GemmaCTC, greedy_decode, load_checkpoint  # noqa: E402
 from eg2tamil.text import normalize_hypothesis  # noqa: E402
 from eg2tamil.units import Units  # noqa: E402
@@ -57,6 +58,7 @@ def main():
     ap.add_argument("--beta", type=float, default=0.5, help="word bonus (tuned on valid)")
     ap.add_argument("--unk_offset", type=float, default=-5.0, help="score of a word that is not in unigrams.txt (tuned on valid)")
     ap.add_argument("--beam", type=int, default=64)
+    ap.add_argument("--no_itn", action="store_true", help="keep spoken numbers as words. Default: numbers of 10 or more become digits")
     args = ap.parse_args()
 
     ckpt = load_checkpoint(args.ckpt)
@@ -85,7 +87,7 @@ def main():
         else:
             hyps = [units.decode(u) for u in greedy_decode(logits, out_lens)]
         for j, h in zip(ids, hyps):
-            texts[j] = normalize_hypothesis(h)
+            texts[j] = normalize_hypothesis(h) if args.no_itn else itn(normalize_hypothesis(h))
 
     for i, f in enumerate(args.files):
         print(f"{f}\t{' '.join(t for (fi, _), t in zip(chunks, texts) if fi == i and t)}")

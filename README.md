@@ -137,6 +137,10 @@ For better results, use the LM in `eg2-tamil-model/lm`. Install the LM packages,
 
 `--no-deps` is necessary: pyctcdecode asks for numpy < 2, but it works with numpy 2.
 
+The model writes numbers as Tamil words. `transcribe.py` and the demo then change each spoken number of 10 or more
+to digits ("ஆயிரத்தி தொள்ளாயிரத்தி எழுவத்தாறு" -> "1976"). Add `--no_itn` to keep the words. See
+[Numbers as digits](#numbers-as-digits-itn).
+
 ## Demo
 
 `scripts/demo.py` is a small web page to try the model. You record Tamil speech with the microphone or upload an
@@ -169,7 +173,8 @@ greedy text only.
 - It reads the test clip ids first, then the valid ids, then the train ids, and it drops every id that it has
   already seen. So no test clip is in the train set, and no clip occurs twice.
 - Train text must be Tamil script only. Test text keeps digits and Latin letters, so that the test sets stay complete
-  and comparable with published numbers. The model cannot write digits, so these words always count as errors.
+  and comparable with published numbers. The model writes numbers as words. The ITN step changes them to digits (see
+  [Numbers as digits](#numbers-as-digits-itn)).
 - `--splits valid test` prepares only the evaluation data (about 5.5 GB of downloads).
 
 Each dataset has its own license. FLEURS is CC-BY-4.0. See the dataset pages for the others.
@@ -238,6 +243,46 @@ and `build_binary` with `cmake -DCMAKE_BUILD_TYPE=Release`. With Homebrew boost 
   defaults of `decode_lm.py` and `transcribe.py`. Then the test sets were decoded one time.
 - A wider beam does not help: beam 64, 128 and 256 give the same valid WER within 0.03 points.
 
+### Numbers as digits (ITN)
+
+`eg2tamil/itn.py` is a rule-based inverse text normalization (ITN). It changes spoken Tamil numbers to digits, also
+the colloquial forms that the model writes ("இருவது", "நூற்றி", "முப்பத்த நாலு") and a number with a suffix
+("நூறுகளில்" -> "100 களில்"). Numbers below 10 stay as words, because "ஆறு" is also "river" and "ஒரு" is also "a".
+The limit 10 was tuned on the FLEURS valid set. Symbols are not written: the scoring removes them from the
+references.
+
+    python scripts/decode_lm.py --ckpt runs/main/best.pt --data_dir data/prepared --split test --sources fleurs mile \
+        --lm data/lm --itn_min 10
+
+The test sets do not write numbers in the same way. FLEURS writes most numbers as digits. IISc-MILE writes them as
+words. Thus there are three scores:
+
+- **raw:** the model output against the references.
+- **ITN:** ITN on the model output only. This is the output of `transcribe.py`.
+- **normalized:** ITN on the model output and on the references. This score does not depend on how a test set
+  writes numbers.
+
+Test WER with LM (lower is better):
+
+| Test set | raw | ITN | normalized |
+| --- | --- | --- | --- |
+| FLEURS Tamil | 31.6% | 30.0% | 29.6% |
+| IISc-MILE Tamil | 21.7% | 24.7% | 21.8% |
+
+Test WER, greedy (lower is better):
+
+| Test set | raw | ITN | normalized |
+| --- | --- | --- | --- |
+| FLEURS Tamil | 38.5% | 37.4% | 37.1% |
+| IISc-MILE Tamil | 24.3% | 27.2% | 24.6% |
+
+- ITN removes 1.6 points of the FLEURS WER with LM. 3.0% of the FLEURS reference words have digits or Latin
+  letters, so the rest of that gap is the Latin words and numbers below 10.
+- On IISc-MILE, ITN on the output only adds 3.0 points, because the references keep the words. The normalized WER
+  is 0.2 points higher than the raw WER: ITN joins a number of 4 words into 1 token, so 1 wrong word is then 1
+  error in 1 word, not in 4.
+- Report the raw WER to compare with published numbers. Use the normalized WER to compare models.
+
 ## Detailed results
 
 All test sets, greedy decoding (lower is better for WER and CER):
@@ -299,7 +344,8 @@ Other findings:
 ## Limitations
 
 - The model was trained and tested on read speech only. Conversational speech and noisy speech are not tested.
-- The model writes Tamil script only: no digits, no Latin letters, no punctuation.
+- The model writes Tamil script only: no Latin letters, no punctuation. Digits come from the rule-based ITN step,
+  which changes spoken numbers of 10 or more. It does not write symbols (%, ₹), dates, or times.
 - The results come from one training run. We did not measure the spread across random seeds.
 - The LM settings were tuned on read speech. Other speech can need other settings.
 
@@ -307,8 +353,16 @@ Other findings:
 
 These are good next experiments. Pull requests are welcome.
 
-- **More encoder layers:** fine-tune the top 4 layers instead of 2, in a controlled comparison.
-- **Numbers:** convert digits in the train text to Tamil words, so that the rejected rows can be used.
+- **More encoder layers:** we fine-tuned the top 4 layers instead of 2, with the same 355-min L4 budget
+  (`--unfreeze_top_k 4 --max_batch_seconds 300 --grad_accum 2`, because 600 s batches do not fit in memory).
+  The average test WER increases from 27.6% to 28.1% (lower is better). Each step is about 7% slower, so the
+  run does 14,595 steps, not 18,270. At the same step, the top-4 run has a lower valid WER (29.9% and 31.7% at
+  step 10,000). But the learning rate follows the time budget, so this is not a controlled comparison. A
+  step-matched run is still an open question.
+- **Numbers:** convert digits in the train text to Tamil words, so that the rejected rows can be used. The ITN step
+  then writes them as digits again.
+- **English words:** add Latin letters to the units, and train on Tamil–English speech with English words in Latin
+  letters (for example, joined Tamil and English clips). The current train text writes English words in Tamil script.
 - **More data:** for example, other public Tamil speech datasets.
 - **Unknown words:** more web text helped only a little. A subword or character LM can help more with the many
   Tamil word forms.

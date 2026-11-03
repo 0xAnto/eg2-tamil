@@ -15,6 +15,7 @@ import torch
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from decode_lm import build_decoder  # noqa: E402
+from eg2tamil.itn import itn  # noqa: E402
 from eg2tamil.model import GemmaCTC, greedy_decode, load_checkpoint  # noqa: E402
 from eg2tamil.text import normalize_hypothesis  # noqa: E402
 from eg2tamil.units import Units  # noqa: E402
@@ -39,10 +40,10 @@ def main():
         greedy, beam = [], []
         for c in split(load(path)):  # ponytail: one chunk at a time on the CPU. A demo clip is short.
             logits, n = model(torch.from_numpy(c)[None], torch.tensor([len(c)]))
-            greedy.append(normalize_hypothesis(units.decode(greedy_decode(logits, n)[0])))
+            greedy.append(itn(normalize_hypothesis(units.decode(greedy_decode(logits, n)[0]))))
             if decoder:
                 lp = torch.log_softmax(logits.float(), -1)[0, : int(n[0])].numpy()
-                beam.append(normalize_hypothesis(decoder.decode(lp, beam_width=64)))
+                beam.append(itn(normalize_hypothesis(decoder.decode(lp, beam_width=64))))
         return " ".join(greedy), " ".join(beam) if decoder else "(start the demo with --lm)"
 
     # Blocks, not Interface: Interface puts the two texts one above the other. Side by side, the reader compares them line by line.

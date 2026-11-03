@@ -101,8 +101,8 @@ Word error rate (WER) and character error rate (CER) on the test sets (lower is 
 | FLEURS ta_in (official, all 591 utts) | 38.4% | 15.1% |
 | IISc-MILE (official test, 10,844 utts) | 24.2% | 4.5% |
 
-The references keep digits and Latin letters. The model writes Tamil script only.
-So those words always count as errors. This is the main reason why the FLEURS CER is higher.
+The references keep digits and Latin letters. The model writes Tamil script only, and numbers as words.
+So those words count as errors. The ITN step (numbers to digits) gives 37.4% greedy WER on FLEURS ta_in. This is the main reason why the FLEURS CER is higher.
 
 Ablations on the valid sets at step 1,250 (same data and warmup; average WER, lower is better). The two frozen-encoder
 runs had a 35-min budget. The fine-tuned value comes from the 6-h main run, so its LR decays more slowly: at step 1,250
@@ -157,7 +157,8 @@ This repository holds the reader, the head, the fine-tuned encoder layers, and t
 ## Limitations
 
 - The model was trained and tested on read speech only. Conversational speech and noisy speech are not tested.
-- The output has no digits and no Latin script.
+- The model writes no Latin script. Digits come from a rule-based ITN step in `transcribe.py` (spoken numbers of
+  10 or more).
 - Common Voice reuses sentences across speakers. 78% of the test sentences of the Prajwal Common Voice part
   also occur in the train set. The WER on that test set (22.4%) is optimistic. Use the FLEURS and IISc-MILE numbers.
 

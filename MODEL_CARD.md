@@ -102,7 +102,7 @@ Word error rate (WER) and character error rate (CER) on the test sets (lower is 
 | IISc-MILE (official test, 10,844 utts) | 24.2% | 4.5% |
 
 The references keep digits and Latin letters. The model writes Tamil script only, and numbers as words.
-So those words count as errors. The ITN step (numbers to digits) gives 37.4% greedy WER on FLEURS ta_in. This is the main reason why the FLEURS CER is higher.
+So those words count as errors. This is the main reason why the FLEURS CER is higher.
 
 Ablations on the valid sets at step 1,250 (same data and warmup; average WER, lower is better). The two frozen-encoder
 runs had a 35-min budget. The fine-tuned value comes from the 6-h main run, so its LR decays more slowly: at step 1,250
@@ -122,6 +122,15 @@ valid sets). The LM is in `lm/` of this repository. Lower is better for both:
 The LM is a word 4-gram (KenLM, 366 MB). Its text is 74.5M words: the train transcripts, Tamil Wikipedia, and 2 files
 of AI4Bharat Sangraha. The LM text does not contain a valid or test sentence, or a sequence of 5 words from one.
 The decoder needs about 0.7 GB of RAM for the LM.
+
+`transcribe.py` changes spoken numbers of 10 or more to digits (ITN, `--no_itn` turns it off). FLEURS writes
+numbers as digits and IISc-MILE writes them as words, so ITN helps one test set and not the other. "Normalized"
+applies ITN to the model output and to the references. Test WER with LM (lower is better):
+
+| Test set | Raw | ITN on the output | Normalized |
+| --- | --- | --- | --- |
+| FLEURS ta_in | 31.6% | 30.0% | 29.6% |
+| IISc-MILE | 21.7% | 24.7% | 21.8% |
 The LM evaluation keeps test clips of up to 120 s (IISc-MILE: 10,845 utts), so its greedy numbers are 0.1 higher.
 
 The model-index above gives the greedy numbers, because those need no LM.
